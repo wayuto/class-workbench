@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// 主题初始化：localStorage 优先，否则跟随系统偏好（在首帧前执行避免闪烁）
+(function () {
+  var t = null;
+  try { t = localStorage.getItem("wb-theme"); } catch (e) {}
+  if (t !== "dark" && t !== "light") {
+    t = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+  document.documentElement.dataset.theme = t;
+})();
+</script>
+<title>班级工作台</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+  <aside class="side">
+    <div class="logo">🏫 班级工作台</div>
+    <div class="cls" v-if="store.boot">{{ store.boot.config.class_name }}<span v-if="store.boot.config.term"> · {{ store.boot.config.term }}</span></div>
+    <nav>
+      <a v-for="m in menus" :key="m.key" :href="'#/' + m.key" :class="{ on: store.route === m.key }">
+        <span class="ic">{{ m.icon }}</span>{{ m.label }}
+      </a>
+    </nav>
+    <button class="theme-toggle" @click="toggleTheme">{{ dark ? "☀️ 切换亮色" : "🌙 切换暗色" }}</button>
+    <button v-if="revealWipe" class="wipe-btn" @click="wipeData">🧹 清空全部数据</button>
+    <div class="side-foot" @dblclick="revealWipe = !revealWipe">欲买桂花同载酒，终不似少年游</div>
+  </aside>
+
+  <main class="main">
+    <component :is="viewComp" ref="view"></component>
+  </main>
+
+  <transition name="fade">
+    <div class="toast" v-if="store.toast" :class="{ err: !store.toast.ok }">{{ store.toast.msg }}</div>
+  </transition>
+</div>
+
+<script src="vendor/vue.global.prod.js"></script>
+<script src="vendor/chart.js"></script>
+<script src="vendor/xlsx.mini.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>成绩查询 · 班级站点</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site"><div class="wrap"><h1>📢 成绩查询 · 班级站点</h1><nav class="site"><a href="index.html" >日志</a><a href="groups.html" >小组风采</a><a href="scores.html" class="on">成绩查询</a><a href="honors.html" >光荣榜</a></nav></div></header>
+<div class="wrap">
+<div class="card">
+<h2 style="margin-top:0">📈 个人成绩查询</h2>
+<p style="color:var(--muted);font-size:14px">输入<b>姓名</b>和<b>学号后四位</b>查看历次成绩（可切换科目，虚线为班级平均）</p>
+<div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <input class="q" id="q" placeholder="姓名" autocomplete="off">
+  <input class="q" id="t4" placeholder="学号后四位" maxlength="8" autocomplete="off" style="max-width:130px">
+  <select id="subj" class="q" style="max-width:130px" onchange="query()"><option value="_t">总分</option><option value="语文">语文</option><option value="数学">数学</option><option value="英语">英语</option><option value="物理">物理</option><option value="化学">化学</option><option value="生物">生物</option><option value="政治">政治</option><option value="历史">历史</option><option value="地理">地理</option></select>
+  <button class="btn" onclick="query()">查询</button>
+</div>
+<div id="result"></div>
+</div>
+<script src="assets/chart.js"></script>
+<script>
+const SUBS = ["语文","数学","英语","物理","化学","生物","政治","历史","地理"];
+let AVG = null;
+function esc(s) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;"); }
+async function keyOf(name, tail) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(name + "|" + tail));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 16);
+}
+async function loadAvg() {
+  if (!AVG) AVG = await (await fetch("data/avg.json")).json();
+  return AVG;
+}
+async function query() {
+  const name = document.getElementById("q").value.trim();
+  const tail = document.getElementById("t4").value.trim();
+  const key = document.getElementById("subj").value;
+  const box = document.getElementById("result");
+  if (!name || !tail) { box.innerHTML = '<p style="margin-top:14px">请输入姓名和学号后四位</p>'; return; }
+  const r = await fetch("data/s/" + (await keyOf(name, tail)) + ".json");
+  if (!r.ok) { box.innerHTML = '<p style="margin-top:14px">未找到该同学，请确认姓名和学号后四位</p>'; return; }
+  const found = await r.json();
+  const list = Array.isArray(found) ? found : [found];
+  const stu = list[0];
+  const db = await loadAvg();
+  const mine = db.exams.map((e) => stu.scores[e.id] ? stu.scores[e.id][key] : null);
+  const cls = db.exams.map((e) => (db.avg[e.id] || {})[key]);
+  const rows = db.exams.map((e) => {
+    const per = stu.scores[e.id] || {};
+    const cells = SUBS.map((s) => "<td>" + (per[s] == null ? "—" : per[s]) + "</td>").join("");
+    return '<tr><td>' + esc(e.title) + '</td><td>' + esc(e.date) + '</td>' + cells +
+      '<td><b>' + (per._t == null ? "—" : per._t) + '</b></td></tr>';
+  }).join("");
+  box.innerHTML =
+    '<div style="margin-top:16px"><b>' + esc(stu.name) + '</b>（学号 ' + esc(stu.id) + '）' +
+    (list.length > 1 ? '<span class="meta">存在多条匹配，显示第一条</span>' : '') + '</div>' +
+    '<div id="chart"></div>' +
+    '<div style="overflow-x:auto"><table class="score-table"><thead><tr><th>考试</th><th>日期</th><th>语文</th><th>数学</th><th>英语</th><th>物理</th><th>化学</th><th>生物</th><th>政治</th><th>历史</th><th>地理</th><th>总分</th></tr></thead><tbody>' + rows + '</tbody></table></div>';
+  document.getElementById("chart").innerHTML = ChartLib.line({
+    w: 680, h: 260,
+    series: [
+      { name: key === "_t" ? "我的总分" : "我的" + key, color: "#2f6fed", points: mine, dashed: false },
+      { name: "班级平均", color: "#f59e0b", points: cls, dashed: true },
+    ],
+    xLabels: db.exams.map((e) => e.title),
+  });
+}
+for (const id of ["q", "t4"]) {
+  document.getElementById(id).addEventListener("keydown", (ev) => { if (ev.key === "Enter") query(); });
+}
+</script>
+</div>
+<footer class="site">由班级工作台生成 · 更新于 2026/10/25 14:53:30</footer>
+</body>
+</html>

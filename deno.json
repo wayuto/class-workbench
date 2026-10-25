@@ -1,0 +1,11 @@
+{
+  "tasks": {
+    "dev": "deno run -A --watch main.ts",
+    "start": "deno run -A main.ts",
+    "seed": "deno run -A src/seed.ts",
+    "check": "deno check main.ts src/seed.ts"
+  },
+  "fmt": {
+    "lineWidth": 100
+  }
+}

@@ -1,0 +1,40 @@
+
+:root{--blue:#2f6fed;--ink:#1f2937;--muted:#6b7280;--bg:#f5f7fb;--card:#fff;--radius:12px}
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:var(--bg);line-height:1.65}
+.wrap{max-width:760px;margin:0 auto;padding:16px}
+header.site{background:var(--blue);color:#fff;padding:14px 16px}
+header.site .wrap{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+header.site h1{font-size:18px;margin:0}
+nav.site a{color:#fff;text-decoration:none;margin-left:14px;font-size:14px;opacity:.92}
+nav.site a:hover{opacity:1;text-decoration:underline}
+nav.site a.on{opacity:1;font-weight:600;text-decoration:underline}
+.card{background:var(--card);border-radius:var(--radius);padding:18px 20px;margin:14px 0;box-shadow:0 1px 4px rgba(15,35,80,.07)}
+.post-item{display:flex;gap:14px;align-items:flex-start}
+.post-date{flex:none;width:56px;text-align:center;background:#eef3ff;color:var(--blue);border-radius:10px;padding:6px 0;font-weight:600}
+.post-date .d{font-size:20px;display:block;line-height:1.1}
+.post-date .m{font-size:11px}
+.post-item h2{margin:0 0 6px;font-size:17px}
+.post-item h2 a{color:var(--ink);text-decoration:none}
+.post-item p{margin:0;color:var(--muted);font-size:14px}
+article.md h2{font-size:20px}article.md h3{font-size:17px}article.md h4{font-size:15px}
+article.md img{max-width:100%;border-radius:8px}
+article.md pre{background:#0f172a;color:#e2e8f0;padding:12px 14px;border-radius:8px;overflow-x:auto;font-size:13px}
+article.md code{background:#eef1f6;padding:1px 5px;border-radius:4px;font-size:.92em}
+article.md pre code{background:none;padding:0}
+article.md blockquote{margin:10px 0;padding:6px 14px;border-left:3px solid var(--blue);background:#f2f6ff;color:#374151}
+.meta{color:var(--muted);font-size:13px;margin:4px 0 14px}
+.chip{display:inline-block;background:#eef3ff;color:#2b5fd9;border-radius:999px;padding:2px 12px;margin:2px 4px 2px 0;font-size:13px}
+.chip.leader{background:#fff4e0;color:#b45309}
+.btn{display:inline-block;background:var(--blue);color:#fff;border:none;border-radius:8px;padding:9px 22px;font-size:15px;cursor:pointer}
+.btn:active{transform:translateY(1px)}
+input.q{font-size:16px;padding:10px 12px;border:1px solid #d4dae3;border-radius:8px;width:100%;max-width:320px}
+.score-table{width:100%;border-collapse:collapse;font-size:14px;margin-top:10px}
+.score-table th,.score-table td{border-bottom:1px solid #edf0f4;padding:7px 8px;text-align:left}
+.score-table th{color:var(--muted);font-weight:500}
+.badge-off{background:#fdeaea;color:#c0392b;border-radius:6px;padding:2px 8px;font-size:12px}
+.honor-cards{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin:16px 0}
+.honor-card{background:#fff;border-radius:12px;padding:16px 20px;text-align:center;box-shadow:0 1px 4px rgba(15,35,80,.07);min-width:96px;border:1px solid #eef1f6}
+.honor-card .m{font-size:30px;line-height:1.2}
+.honor-card .n{font-weight:700;font-size:16px;margin-top:2px}
+.honor-card .s{color:#b45309;font-weight:700;font-size:14px}
+footer.site{color:var(--muted);font-size:12px;text-align:center;padding:20px 0 28px}
