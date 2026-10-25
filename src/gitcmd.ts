@@ -126,6 +126,8 @@ export interface RepoInfo {
   dirty: boolean;
   lastCommit: { subject: string; time: string } | null;
   remotes: string[];
+  /** origin 远程地址（未设置则为 null），供发布中心回填输入框 */
+  originUrl: string | null;
 }
 
 export async function repoInfo(dir: URL): Promise<RepoInfo> {
@@ -134,6 +136,7 @@ export async function repoInfo(dir: URL): Promise<RepoInfo> {
     dirty: false,
     lastCommit: null,
     remotes: [],
+    originUrl: null,
   };
   if (!info.isRepo) return info;
 
@@ -150,5 +153,63 @@ export async function repoInfo(dir: URL): Promise<RepoInfo> {
   if (remotesR.ok) {
     info.remotes = remotesR.out.split("\n").map((s) => s.trim()).filter(Boolean);
   }
+  const urlR = await git(dir, "remote", "get-url", "origin");
+  info.originUrl = urlR.ok ? urlR.out.trim() : null;
   return info;
+}
+
+/** 从远程拉取同步（换电脑 / 恢复数据用）：
+ *  fetch → 远程默认分支 → 本地无提交则直接检出，有提交则快进合并（不自动覆盖本地修改） */
+export async function pullRepo(
+  dir: URL,
+): Promise<{ ok: boolean; detail: string; changed: boolean }> {
+  const remotesR = await git(dir, "remote");
+  const remotes = remotesR.ok
+    ? remotesR.out.split("\n").map((s) => s.trim()).filter(Boolean)
+    : [];
+  if (!remotes.length) {
+    return { ok: false, changed: false, detail: "尚未设置远程仓库地址，请先在发布中心保存" };
+  }
+  const remote = remotes[0];
+  const fetch = await git(dir, "fetch", "--prune", remote);
+  if (!fetch.ok) {
+    return {
+      ok: false,
+      changed: false,
+      detail: `拉取失败：无法连接远程（${fetch.err || fetch.out || "网络或地址问题"}）`,
+    };
+  }
+  // 远程默认分支：优先 HEAD 符号引用，退化到 main / master，再退化到第一个分支
+  const symref = await git(dir, "ls-remote", "--symref", remote, "HEAD");
+  let branch = symref.out.match(/ref: refs\/heads\/(\S+)/)?.[1] ?? "";
+  if (!branch) {
+    const heads = await git(dir, "branch", "-r", "--format=%(refname:short)");
+    const names = heads.out.split("\n").map((s) => s.trim())
+      .filter((s) => s.startsWith(remote + "/"));
+    branch = (names.find((n) => /\/(main|master)$/.test(n)) ?? names[0])
+      ?.slice(remote.length + 1) ?? "";
+  }
+  if (!branch) return { ok: false, changed: false, detail: "远程仓库还没有任何提交" };
+
+  const head = await git(dir, "rev-parse", "--verify", "--quiet", "HEAD");
+  if (!head.ok) {
+    // 本地还没有任何提交（全新仓库）：直接检出远程分支
+    const co = await git(dir, "checkout", "-B", branch, `${remote}/${branch}`);
+    if (!co.ok) return { ok: false, changed: false, detail: `拉取失败：${co.err || co.out}` };
+    return { ok: true, changed: true, detail: `已从云端拉取数据（${branch} 分支）` };
+  }
+  const merge = await git(dir, "merge", "--ff-only", `${remote}/${branch}`);
+  if (merge.ok) {
+    const upToDate = /already up to date/i.test(merge.out);
+    return {
+      ok: true,
+      changed: !upToDate,
+      detail: upToDate ? "云端没有新数据，本地已是最新" : "已拉取云端新数据",
+    };
+  }
+  return {
+    ok: false,
+    changed: false,
+    detail: `拉取失败：本地与云端历史无法快进合并（${(merge.err || merge.out).split("\n")[0]}）。建议先点「备份」推送本地修改；若确要放弃本机状态，需手动处理。`,
+  };
 }

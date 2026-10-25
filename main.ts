@@ -44,7 +44,7 @@ import {
   isValidDate,
 } from "./src/journal.ts";
 import { renderMarkdown } from "./src/markdown.ts";
-import { commitAll, pushIfRemote, repoInfo } from "./src/gitcmd.ts";
+import { commitAll, pushIfRemote, repoInfo, ensureRepo, pullRepo, git } from "./src/gitcmd.ts";
 import { generateSite } from "./src/ssg.ts";
 import { seedData } from "./src/seed.ts";
 
@@ -429,6 +429,33 @@ async function handleApi(
     const push = await pushIfRemote(dataDir);
     log.push(push.pushed ? `✓ ${push.detail}` : `· ${push.detail}`);
     return json({ ok: true, log });
+  }
+
+  // 仓库设置：为 data/ 或 site/ 配置 origin 远程（url 留空 = 解除远程）
+  if (method === "PUT" && (m = path.match(/^\/api\/repo\/(data|site)\/remote$/))) {
+    const dir = m[1] === "data" ? dataDir : siteDir;
+    const body = await readJsonBody(req);
+    const url = String(body.url ?? "").trim();
+    await ensureRepo(dir);
+    if (!url) {
+      await git(dir, "remote", "remove", "origin");
+      return json({ ok: true, detail: "已解除远程仓库配置" });
+    }
+    if (/\s/.test(url)) return badRequest("仓库地址不能包含空格");
+    const exists = await git(dir, "remote", "get-url", "origin");
+    const r = exists.ok
+      ? await git(dir, "remote", "set-url", "origin", url)
+      : await git(dir, "remote", "add", "origin", url);
+    if (!r.ok) return json({ error: "设置失败：" + (r.err || r.out) }, 500);
+    return json({ ok: true, detail: "远程仓库已保存：" + url });
+  }
+
+  // 拉取云端：data/ 恢复数据，site/ 恢复已发布站点
+  if (method === "POST" && (m = path.match(/^\/api\/repo\/(data|site)\/pull$/))) {
+    const dir = m[1] === "data" ? dataDir : siteDir;
+    const r = await pullRepo(dir);
+    if (!r.ok) return badRequest(r.detail);
+    return json(r);
   }
 
   // 清空全部数据（恢复全新状态）：先把现有数据留档提交，误触也能从 git 历史找回

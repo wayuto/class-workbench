@@ -125,7 +125,7 @@ function confirmLeaveNav() {
 // ---------- 各视图组件 ----------
 
 const Dashboard = {
-  data: () => ({ store, busy: false }),
+  data: () => ({ store, busy: false, pulling: false }),
   computed: {
     boot() { return store.boot; },
     scoredCount() {
@@ -145,6 +145,17 @@ const Dashboard = {
     },
     // 未保存守卫在 hashchange 里统一处理，这里直接改地址即可
     go(r) { location.hash = "#/" + r; },
+    // 换电脑 / 误清空后从云端数据仓库恢复
+    async pullData() {
+      if (!confirm("从云端数据仓库拉取并同步到本机？\n若本机有未备份的修改，请先到「发布中心 → 备份数据」。确定继续？")) return;
+      this.pulling = true;
+      try {
+        const r = await api.post("/repo/data/pull", {});
+        await refreshBoot();
+        toast(r.detail || "已拉取云端数据");
+      } catch (e) { toast(e.message, false); }
+      this.pulling = false;
+    },
   },
   template: `
 <div>
@@ -178,6 +189,7 @@ const Dashboard = {
     <div class="row" style="margin-top:6px">
       <button class="btn" @click="go('publish')">🚀 前往发布中心</button>
       <button class="btn-ghost" @click="go('journal')">✍️ 写班级日志</button>
+      <button class="btn-ghost" :disabled="pulling" @click="pullData">{{ pulling ? "拉取中…" : "⬇ 拉取云端数据" }}</button>
     </div>
   </div>
 </div>`,
@@ -2126,6 +2138,8 @@ const Publish = {
     pubLog: [],
     bakLog: [],
     busy: "",
+    dataUrl: "",
+    siteUrl: "",
   }),
   watch: {
     scope: {
@@ -2133,10 +2147,40 @@ const Publish = {
       handler(v) { savePublishScope(v); },
     },
   },
-  async created() { await refreshBoot(); },
+  async created() {
+    await refreshBoot();
+    this.syncUrls();
+  },
   methods: {
     gitClass(r) { return r.isRepo ? (r.dirty ? "badge warn" : "badge pub") : "badge off"; },
     gitText(r) { return !r.isRepo ? "未初始化" : r.dirty ? "有未提交修改" : "干净"; },
+    syncUrls() {
+      this.dataUrl = store.boot?.git?.data?.originUrl || "";
+      this.siteUrl = store.boot?.git?.site?.originUrl || "";
+    },
+    // 保存/解除远程地址（留空 = 解除）
+    async saveRemote(which) {
+      const url = (which === "data" ? this.dataUrl : this.siteUrl).trim();
+      this.busy = which + "-remote";
+      try {
+        const r = await api.put("/repo/" + which + "/remote", { url });
+        toast(r.detail || "已保存");
+        await refreshBoot();
+        this.syncUrls();
+      } catch (e) { toast(e.message, false); }
+      this.busy = "";
+    },
+    // 从云端恢复：data/ 拉数据，site/ 拉已发布站点
+    async pullRepo(which) {
+      this.busy = which + "-pull";
+      try {
+        const r = await api.post("/repo/" + which + "/pull", {});
+        toast(r.detail || "拉取完成");
+        await refreshBoot();
+        this.syncUrls();
+      } catch (e) { toast(e.message, false); }
+      this.busy = "";
+    },
     async doPublish() {
       const warns = [];
       if (this.scope.scores) warns.push("成绩查询数据将随站点公开（查询需姓名 + 学号后四位）");
@@ -2205,14 +2249,30 @@ const Publish = {
   <div class="card" v-if="bakLog.length"><h2>备份日志</h2><pre class="logbox">{{ bakLog.join("\\n") }}</pre></div>
 
   <div class="card" v-if="store.boot">
-    <h2>仓库状态</h2>
+    <h2>仓库设置与状态</h2>
+    <div class="row" style="margin-bottom:6px">
+      <span class="hint" style="width:132px"><b>数据仓库</b>（data/）</span>
+      <input type="text" v-model="dataUrl" placeholder="远程仓库地址，留空保存 = 解除远程（建议私有仓库）" style="flex:1;min-width:200px">
+      <button class="btn-ghost" :disabled="busy === 'data-remote'" @click="saveRemote('data')">{{ busy === 'data-remote' ? "保存中…" : "💾 保存" }}</button>
+      <button class="btn-ghost" :disabled="busy === 'data-pull'" @click="pullRepo('data')">⬇ 拉取云端</button>
+    </div>
     <p><span :class="gitClass(store.boot.git.data)">数据仓库（data/）{{ gitText(store.boot.git.data) }}</span>
       <span v-if="store.boot.git.data.lastCommit" class="muted">　上次提交：{{ store.boot.git.data.lastCommit.subject }}</span>
-      <span v-if="!store.boot.git.data.remotes.length" class="muted">　（未配置远程：cd data && git remote add origin &lt;私有仓库地址&gt;）</span>
+      <span v-if="!store.boot.git.data.remotes.length" class="muted">　（未配置远程）</span>
     </p>
+    <div class="row" style="margin:10px 0 6px">
+      <span class="hint" style="width:132px"><b>站点仓库</b>（site/）</span>
+      <input type="text" v-model="siteUrl" placeholder="远程仓库地址，留空保存 = 解除远程（公开仓库，连 EdgeOne Pages）" style="flex:1;min-width:200px">
+      <button class="btn-ghost" :disabled="busy === 'site-remote'" @click="saveRemote('site')">{{ busy === 'site-remote' ? "保存中…" : "💾 保存" }}</button>
+      <button class="btn-ghost" :disabled="busy === 'site-pull'" @click="pullRepo('site')">⬇ 拉取云端</button>
+    </div>
     <p><span :class="gitClass(store.boot.git.site)">站点仓库（site/）{{ gitText(store.boot.git.site) }}</span>
       <span v-if="store.boot.git.site.lastCommit" class="muted">　上次发布：{{ store.boot.git.site.lastCommit.subject }}</span>
-      <span v-if="!store.boot.git.site.remotes.length" class="muted">　（未配置远程：cd site && git remote add origin &lt;公开仓库地址&gt;）</span>
+      <span v-if="!store.boot.git.site.remotes.length" class="muted">　（未配置远程）</span>
+    </p>
+    <p class="hint" style="margin:10px 0 0">
+      数据仓库建议用<b>私有</b>仓库（存名单成绩备份）；站点仓库推送到公开仓库后，EdgeOne Pages 自动部署。
+      拉取 = 把云端数据 / 已发布站点恢复到本机（换电脑、误清空时用）；本机有未备份的修改时，请先点上方「备份」。
     </p>
   </div>
 </div>`,
